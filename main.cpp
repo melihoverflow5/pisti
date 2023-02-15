@@ -3,7 +3,6 @@
 #include <vector>
 #include <algorithm>
 #include <cstdlib>
-#include <conio.h>
 #include <iomanip>
 
 using namespace std;
@@ -26,13 +25,13 @@ public:
         return rank;
     }
     Card(string suit_i, string rank_i) : suit(suit_i), rank(rank_i){
-        if(rank_i == "A")
+        if(rank == "A")
             point = 1;
-        else if(rank_i == "J")
+        else if(rank == "J")
             point = 1;
-        else if(suit_i == "♣" && rank_i == "2")
+        else if(suit == "♣" && rank == "2")
             point = 2;
-        else if(suit_i == "♦" && rank_i == "10")
+        else if(suit == "♦" && rank == "10")
             point = 3;
         else
             point = 0;
@@ -49,9 +48,10 @@ int randomize(int i){
 };
 
 class Player{
-private:
+protected:
     string name;
     int point = 0;
+    int pisti;
 public:
     string getName(){
         return name;
@@ -62,10 +62,106 @@ public:
     void addPoints(int p){
         point += p;
     }
+    void addPisti(){
+        pisti++;
+    }
+    int getPisti(){
+        return pisti;
+    }
     vector<Card> PlayerHand = {};
     vector<Card> PlayerPocket = {};
-    Player(string name1) : name(name1){};
+    Player(string name1) : name(name1), pisti(0){};
+
+    virtual void nextGame() {
+        PlayerPocket.clear();
+        pisti = 0;
+    }
 };
+
+class ComputerPlayer : public Player {
+private:
+    vector<Card> KnownCards = {};
+    vector<Card> CardsOnTable = {};
+    vector<int> Possibilities = {};
+public:
+    void getKnownCards() {
+        cout << endl;
+        for (int i = 0; i < KnownCards.size(); ++i) {
+            cout << KnownCards[i] << " ";
+        }
+        cout << endl;
+    }
+    void getCardsOnTable(){
+        cout << endl;
+        for (int i = 0; i < CardsOnTable.size(); ++i) {
+            cout << CardsOnTable[i] << " ";
+        }
+        cout << endl;
+    }
+    void addPlayedCard(Card c){
+        KnownCards.push_back(c);
+    }
+    void addPlayedCard(vector<Card> c){
+        for (int i = 0; i < c.size(); i++) {
+            KnownCards.push_back(c[i]);
+        }
+    }
+    void addCardOnTheTable(Card c) {
+        CardsOnTable.push_back(c);
+    }
+    void clearCardsOnTheTable(){
+        CardsOnTable.clear();
+    }
+    int isThereJ() {
+        for (int i = 0; i < PlayerHand.size(); i++) {
+            if(PlayerHand[i].getRank() == "J")
+                return i;
+        }
+        return -1;
+    }
+    int play() {
+        int p = 0;
+        for (int i = 0; i < PlayerHand.size(); ++i) {
+            if(KnownCards.back().getRank() == PlayerHand[i].getRank()){
+                return i;
+            }
+        }
+        for(int i = 0; i < CardsOnTable.size(); i++) {
+            p += CardsOnTable[i].getPoint();
+        }
+        CalculatePossibility();
+        if(p != 0){
+            if(isThereJ() != -1)
+                return isThereJ();
+        }
+        int selected = max_element(Possibilities.begin(), Possibilities.end()) - Possibilities.begin();
+//        cout << selected;
+        if (PlayerHand[selected].getRank() != "J")
+            return selected;
+        else
+            return 0;
+    }
+    void CalculatePossibility(){
+        int poss;
+        Possibilities.clear();
+        for (int i = 0; i < PlayerHand.size(); i++) {
+            poss = 0;
+            for (int j = 0; j < KnownCards.size(); j++) {
+                if(PlayerHand[i].getRank() == KnownCards[j].getRank())
+                    poss++;
+            }
+            Possibilities.push_back(poss);
+        }
+    }
+    void nextGame() override {
+        PlayerPocket.clear();
+        pisti = 0;
+        KnownCards.clear();
+        CardsOnTable.clear();
+    }
+    ComputerPlayer(string name1) : Player(name1) {}
+};
+
 
 class PistiController{
 private:
@@ -76,8 +172,14 @@ private:
 
     vector<Card> CardsOnTable = {};
     int round = 0;
-    Player lastWinner = Player("none");
+    Card lastPlayedCard = Card("   ", "   ");
+    string lastWinner = " ";
+    int res1 = 0, res2 = 0;
 public:
+    Card getLastPlayedCard() {
+        return lastPlayedCard;
+    }
+
     int getRound(){
         return round;
     }
@@ -108,58 +210,89 @@ public:
     }
     void playCard(Player &player, int position){
         CardsOnTable.push_back(player.PlayerHand.at(position));
+        lastPlayedCard = player.PlayerHand.at(position);
         player.PlayerHand.erase(player.PlayerHand.begin()+position);
 
         if(CardsOnTable.size() == 1) {
         }else if(CardsOnTable.size() == 2){
             if(CardsOnTable.front().getRank() == CardsOnTable.back().getRank()){
-                player.addPoints(10);
+                player.addPisti();
                 if(CardsOnTable.front().getRank() == "J")
-                    player.addPoints(10);
+                    player.addPisti();
                 getCards(player.PlayerPocket);
-                lastWinner = player;
+                lastWinner = player.getName();
             }else if(CardsOnTable.back().getRank() == "J"){
                 getCards(player.PlayerPocket);
-                lastWinner = player;
+                lastWinner = player.getName();
             }
         }else{
             if(CardsOnTable.end()[-2].getRank() == CardsOnTable.end()[-1].getRank() ||
                     CardsOnTable.back().getRank() == "J") {
                 getCards(player.PlayerPocket);
-                lastWinner = player;
+                lastWinner = player.getName();
             }
         }
         round++;
     }
-    void endGame(Player player1, Player player2) {
-        cout << endl << setw(8) << "Game Finished";
-        getCards(lastWinner.PlayerPocket);
-        for (int i = 0; i < player1.PlayerPocket.size(); i++) {
-            player1.addPoints(player1.PlayerPocket[i].getPoint());
-        }
-        for (int i = 0; i < player2.PlayerPocket.size(); i++) {
-            player2.addPoints(player2.PlayerPocket[i].getPoint());
-        }
-        if(player1.PlayerPocket.size() > player2.PlayerPocket.size())
-            player1.addPoints(3);
+    void endGame(Player &player1, Player &player2) {
+        cout << endl << setw(8) << "Game Finished" << setw(20) << "Total Points";
+        if(player1.getName() == lastWinner)
+            getCards(player1.PlayerPocket);
+        else if( player2.getName() == lastWinner)
+            getCards(player2.PlayerPocket);
         else
-            player2.addPoints(3);
-        cout << endl << setw(8) <<"Player 1:" << player1.getPoints() << endl;
-        cout << setw(8) <<"Player 2:" << player2.getPoints() << endl;
-        if(player1.getPoints() > player2.getPoints()){
-            cout << setw(8) << "Player 1 WON";
-        }else if(player1.getPoints() == player2.getPoints()){
-            cout << setw(8) << "DRAW";
-        }else{
-            cout << setw(8) << "Player 2 WON";
+            cout << "Last Winner is not working"<< endl;
+        for(int i = 0; i < player1.PlayerPocket.size(); i++) {
+            res1 += player1.PlayerPocket[i].getPoint();
         }
+        for(int i = 0; i < player2.PlayerPocket.size(); i++) {
+            res2 += player2.PlayerPocket[i].getPoint();
+        }
+
+        if (player1.PlayerPocket.size() > player2.PlayerPocket.size()){
+            res1 += 3;
+        }else if (player1.PlayerPocket.size() < player2.PlayerPocket.size()) {
+            res2 +=3;
+        }else {
+            if(res1 > res2)
+                res1 += 3;
+            else
+                res2 += 3;
+        }
+        res1 += (player1.getPisti() * 10);
+        res2 += (player2.getPisti() * 10);
+        player1.addPoints(res1);
+        player2.addPoints(res2);
+        cout << endl << setw(8) <<player1.getName() << setw(4)<< res1 << setw(14) << player1.getPoints() << endl;
+        cout << setw(8) << player2.getName() << setw(4) << res2 << setw(14) << player2.getPoints() << endl << endl;
+        if(res1 > res2){
+            cout << setw(4) << player1.getName() << " is ahead now. Which one do you want?";
+        }else if(res1 == res2){
+            cout << setw(4) << "DRAW";
+        }else{
+            cout << setw(4) << player2.getName() << " is ahead now. Which one do you want?";
+        }
+        player1.nextGame();
+        player2.nextGame();
+
     }
 };
+
+
+
+
+
+
+
+
+
+
+
 
 int main() {
     cout << "---------------------Start Game---------------------"<< endl << endl;
     Player player1("Bob");
-    Player player2("Joey");
+    ComputerPlayer player2("Joey");
 
     cout << "Press enter to start . . .";
     cin.get();
@@ -170,20 +303,24 @@ int main() {
         int choice;
         while (controller.getRound() < 48) {
             int position;
-
             if (controller.getRound() % 8 == 0) {
                 controller.draw4(player1.PlayerHand);
                 controller.draw4(player2.PlayerHand);
+                player2.addPlayedCard(player2.PlayerHand);
             }
-            cout << endl << setw(26) << controller.cardOnTheTable() << endl << endl;
-            if (controller.getRound() % 2 == 0) {
+            if(controller.getRound() == 0){
+                player2.addPlayedCard(controller.cardOnTheTable());
+                player2.addCardOnTheTable(controller.cardOnTheTable());
+            }
 
+            if (controller.getRound() % 2 == 0) {
+                cout << endl << setw(25) << controller.cardOnTheTable() << endl << endl;
                 for (int i = 0; i < player1.PlayerHand.size(); ++i) {
-                    cout << setw(9) << player1.PlayerHand[i];
+                    cout << setw(10) << player1.PlayerHand[i];
                 }
                 cout << endl;
                 for (int i = 0; i < player1.PlayerHand.size(); ++i) {
-                    cout << setw(9) << "  " << i + 1 << " ";
+                    cout << setw(8) << " " << i + 1 << " ";
                 }
                 cout << endl << setw(4) << player1.getName() << ", which card do you want to play ? ";
                 while (1) {
@@ -193,27 +330,21 @@ int main() {
                     cout << "Invalid Input ";
                 }
                 controller.playCard(player1, position - 1);
+                player2.addPlayedCard(controller.getLastPlayedCard());
             } else {
-                for (int i = 0; i < player2.PlayerHand.size(); ++i) {
-                    cout << setw(9) << player2.PlayerHand[i];
-                }
                 cout << endl;
-                for (int i = 0; i < player2.PlayerHand.size(); ++i) {
-                    cout << setw(9) << "  " << i + 1 << " ";
-                }
-                cout << endl << setw(4) << player2.getName() << ", which card do you want to play ? ";
-                while (1) {
-                    cin >> position;
-                    if (position > 0 && position <= player2.PlayerHand.size())
-                        break;
-                    cout << "Invalid Input ";
-                }
-                controller.playCard(player2, position - 1);
+                position = player2.play();
+                controller.playCard(player2, position);
             }
+            player2.addCardOnTheTable(controller.getLastPlayedCard());
+            if(controller.cardOnTheTable().getRank() == "   ")
+                player2.clearCardsOnTheTable();
+//            player2.getKnownCards();
+//            player2.getCardsOnTable();
         }
         controller.endGame(player1, player2);
 
-        cout << endl << setw(8) << "1 - Continue\n2- Exit\n";
+        cout << endl << setw(8) << "1 - Continue\n2 - Exit\n";
         while(1){
             cin >> setw(8) >> choice;
             if(choice == 1 || choice == 2)
@@ -223,6 +354,11 @@ int main() {
         if(choice == 2)
             break;
     }
-
+    if(player1.getPoints() > player2.getPoints())
+        cout << "\n\n\n" << setw(10) << player1.getName() << " WON THE GAME!!!!\n\n";
+    else if(player2.getPoints() > player1.getPoints())
+        cout << "\n\n\n" << setw(10) << player2.getName() << " WON THE GAME!!!!\n\n";
+    else
+        cout << "\n\n\n" << setw(10) << "DRAW\n\n";
     return 0;
 }
